@@ -1,13 +1,12 @@
 command_exec:
-  # デフォルトの許可コマンドリスト
   allowed_commands:
     - git
     - ls
     - mkdir
     - cd
-    - npm
-    - npx
-    - python
-    - python3
-    - pip
-    - pip3
+    - go
+    - make
+    - cat
+    - find
+    - grep
+
