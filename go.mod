@@ -1,6 +1,8 @@
 module github.com/cnosuke/mcp-command-exec
 
-go 1.24.0
+go 1.23.0
+
+toolchain go1.23.4
 
 require (
 	github.com/cockroachdb/errors v1.11.3

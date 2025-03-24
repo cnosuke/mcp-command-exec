@@ -18,7 +18,11 @@ func Run(cfg *config.Config) error {
 	done := make(chan struct{})
 
 	// Create Command Executor server
-	zap.S().Debugw("creating Command Executor server")
+	zap.S().Debugw("creating Command Executor server",
+		"allowed_commands", cfg.CommandExec.AllowedCommands,
+		"search_paths", cfg.CommandExec.SearchPaths,
+		"path_behavior", cfg.CommandExec.PathBehavior)
+		
 	commandExecutorServer, err := NewCommandExecutorServer(cfg)
 	if err != nil {
 		zap.S().Errorw("failed to create Command Executor server", "error", err)

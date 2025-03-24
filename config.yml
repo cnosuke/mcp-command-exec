@@ -9,4 +9,17 @@ command_exec:
     - cat
     - find
     - grep
-
+    - pwd
+  # 作業ディレクトリ設定
+  default_working_dir: "/Users/cnosuke/dev/src/github.com/cnosuke/mcp-command-exec"
+  allowed_dirs:
+    - "/Users/cnosuke/dev/src"
+    - "/tmp"
+  show_working_dir: true
+  # 探索パス設定
+  search_paths:
+    - "/usr/local/bin"
+    - "/usr/bin"
+    - "/bin"
+    - "/Users/cnosuke/.local/share/mise/shims/"
+  path_behavior: "prepend" # prepend, replace, append

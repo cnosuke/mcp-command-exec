@@ -18,12 +18,20 @@ var defaultAllowedCommands = []string{
 	"cat",
 	"find",
 	"grep",
+	"pwd",
 }
 
 // Config - Application configuration
 type Config struct {
 	CommandExec struct {
 		AllowedCommands []string `yaml:"allowed_commands"`
+		// 作業ディレクトリ関連設定
+		DefaultWorkingDir string     `yaml:"default_working_dir" env:"DEFAULT_WORKING_DIR"`
+		AllowedDirs      []string    `yaml:"allowed_dirs"`
+		ShowWorkingDir   bool        `yaml:"show_working_dir" default:"true"`
+		// 探索パス関連設定
+		SearchPaths      []string    `yaml:"search_paths"`
+		PathBehavior     string      `yaml:"path_behavior" default:"prepend"`
 	} `yaml:"command_exec"`
 }
 
