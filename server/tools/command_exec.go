@@ -24,7 +24,7 @@ type CommandExecutor interface {
 func RegisterCommandExecTool(server *mcp.Server, executor CommandExecutor) error {
 	zap.S().Debugw("registering command_exec tool")
 	description := fmt.Sprint(
-		"Execute a system command from a predefined allowed list. Allowed commands: %s",
+		"Execute a system command from a predefined allowed list. Allowed commands: ",
 		executor.GetAllowedCommands())
 	err := server.RegisterTool("command_exec", description,
 		func(args CommandExecutorArgs) (*mcp.ToolResponse, error) {
