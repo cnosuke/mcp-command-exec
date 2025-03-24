@@ -51,6 +51,11 @@ func (s *CommandExecutorServer) IsCommandAllowed(command string) bool {
 	return false
 }
 
+// GetAllowedCommands - Get the allowed commands joined by a comma
+func (s *CommandExecutorServer) GetAllowedCommands() string {
+	return strings.Join(s.AllowedCommands, ", ")
+}
+
 // ExecuteCommand - Execute a command and return the output
 func (s *CommandExecutorServer) ExecuteCommand(command string) (string, error) {
 	parts := strings.Fields(command)

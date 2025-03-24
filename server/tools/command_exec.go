@@ -17,12 +17,16 @@ type CommandExecutorArgs struct {
 type CommandExecutor interface {
 	ExecuteCommand(command string) (string, error)
 	IsCommandAllowed(command string) bool
+	GetAllowedCommands() string
 }
 
 // RegisterCommandExecTool - Register the command_exec tool
 func RegisterCommandExecTool(server *mcp.Server, executor CommandExecutor) error {
 	zap.S().Debugw("registering command_exec tool")
-	err := server.RegisterTool("command_exec", "Execute a system command from a predefined allowed list",
+	description := fmt.Sprint(
+		"Execute a system command from a predefined allowed list. Allowed commands: %s",
+		executor.GetAllowedCommands())
+	err := server.RegisterTool("command_exec", description,
 		func(args CommandExecutorArgs) (*mcp.ToolResponse, error) {
 			zap.S().Debugw("executing command_exec",
 				"command", args.Command)
