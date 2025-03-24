@@ -6,7 +6,7 @@ import (
 
 // RegisterAllTools - Register all tools with the server
 func RegisterAllTools(mcpServer *mcp.Server, executor CommandExecutor) error {
-	// Register command/exec tool
+	// Register command_exec tool
 	if err := RegisterCommandExecTool(mcpServer, executor); err != nil {
 		return err
 	}

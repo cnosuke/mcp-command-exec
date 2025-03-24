@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// CommandExecutorArgs - Arguments for command/exec tool
+// CommandExecutorArgs - Arguments for command_exec tool
 type CommandExecutorArgs struct {
 	Command string `json:"command" jsonschema:"description=The command to execute"`
 }
@@ -19,12 +19,12 @@ type CommandExecutor interface {
 	IsCommandAllowed(command string) bool
 }
 
-// RegisterCommandExecTool - Register the command/exec tool
+// RegisterCommandExecTool - Register the command_exec tool
 func RegisterCommandExecTool(server *mcp.Server, executor CommandExecutor) error {
-	zap.S().Debugw("registering command/exec tool")
-	err := server.RegisterTool("command/exec", "Execute a system command from a predefined allowed list",
+	zap.S().Debugw("registering command_exec tool")
+	err := server.RegisterTool("command_exec", "Execute a system command from a predefined allowed list",
 		func(args CommandExecutorArgs) (*mcp.ToolResponse, error) {
-			zap.S().Debugw("executing command/exec",
+			zap.S().Debugw("executing command_exec",
 				"command", args.Command)
 
 			// 空のコマンドをチェック
@@ -53,8 +53,8 @@ func RegisterCommandExecTool(server *mcp.Server, executor CommandExecutor) error
 		})
 
 	if err != nil {
-		zap.S().Errorw("failed to register command/exec tool", "error", err)
-		return errors.Wrap(err, "failed to register command/exec tool")
+		zap.S().Errorw("failed to register command_exec tool", "error", err)
+		return errors.Wrap(err, "failed to register command_exec tool")
 	}
 
 	return nil
