@@ -10,8 +10,10 @@ command_exec:
     - find
     - grep
     - pwd
+    - mv
+    - cp
   # 作業ディレクトリ設定
-  default_working_dir: "/Users/cnosuke/dev/src/github.com/cnosuke/mcp-command-exec"
+  default_working_dir: "/Users/cnosuke/src"
   allowed_dirs:
     - "/Users/cnosuke/dev/src"
     - "/tmp"
