@@ -14,8 +14,8 @@ type MockCommandExecutorForToolsTest struct {
 	mock.Mock
 }
 
-func (m *MockCommandExecutorForToolsTest) ExecuteCommand(command string) (types.CommandResult, error) {
-	args := m.Called(command)
+func (m *MockCommandExecutorForToolsTest) ExecuteCommand(command string, env map[string]string) (types.CommandResult, error) {
+	args := m.Called(command, env)
 	var result types.CommandResult
 	if val, ok := args.Get(0).(types.CommandResult); ok {
 		result = val
@@ -29,8 +29,8 @@ func (m *MockCommandExecutorForToolsTest) ExecuteCommand(command string) (types.
 	return result, args.Error(1)
 }
 
-func (m *MockCommandExecutorForToolsTest) ExecuteCommandInDir(command, workingDir string) (types.CommandResult, error) {
-	args := m.Called(command, workingDir)
+func (m *MockCommandExecutorForToolsTest) ExecuteCommandInDir(command, workingDir string, env map[string]string) (types.CommandResult, error) {
+	args := m.Called(command, workingDir, env)
 	var result types.CommandResult
 	if val, ok := args.Get(0).(types.CommandResult); ok {
 		result = val

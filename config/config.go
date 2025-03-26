@@ -36,6 +36,8 @@ type Config struct {
 		// 探索パス関連設定
 		SearchPaths  []string `yaml:"search_paths"`
 		PathBehavior string   `yaml:"path_behavior" default:"prepend"`
+		// 環境変数設定
+		Environment map[string]string `yaml:"environment"`
 	} `yaml:"command_exec"`
 }
 

@@ -12,8 +12,8 @@ type CommandResult struct {
 
 // CommandExecutor defines the interface for command execution
 type CommandExecutor interface {
-	ExecuteCommand(command string) (CommandResult, error)
-	ExecuteCommandInDir(command, workingDir string) (CommandResult, error)
+	ExecuteCommand(command string, env map[string]string) (CommandResult, error)
+	ExecuteCommandInDir(command, workingDir string, env map[string]string) (CommandResult, error)
 	IsCommandAllowed(command string) bool
 	GetAllowedCommands() string
 	GetCurrentWorkingDir() string

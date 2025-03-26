@@ -12,14 +12,15 @@ import (
 
 // CommandExecutorArgs - Arguments for command_exec tool
 type CommandExecutorArgs struct {
-	Command    string `json:"command" jsonschema:"description=The command to execute"`
-	WorkingDir string `json:"working_dir,omitempty" jsonschema:"description=Optional working directory for this command only"`
+	Command    string            `json:"command" jsonschema:"description=The command to execute"`
+	WorkingDir string            `json:"working_dir,omitempty" jsonschema:"description=Optional working directory for this command only"`
+	Env        map[string]string `json:"env,omitempty" jsonschema:"description=Optional environment variables for this command only"`
 }
 
 // CommandExecutor defines the interface for command execution
 type CommandExecutor interface {
-	ExecuteCommand(command string) (types.CommandResult, error)
-	ExecuteCommandInDir(command, workingDir string) (types.CommandResult, error)
+	ExecuteCommand(command string, env map[string]string) (types.CommandResult, error)
+	ExecuteCommandInDir(command, workingDir string, env map[string]string) (types.CommandResult, error)
 	IsCommandAllowed(command string) bool
 	GetAllowedCommands() string
 	GetCurrentWorkingDir() string
@@ -59,12 +60,13 @@ func RegisterCommandExecTool(server *mcp.Server, executor CommandExecutor) error
 			if args.WorkingDir != "" {
 				zap.S().Debugw("executing command in specified directory",
 					"command", args.Command,
-					"working_dir", args.WorkingDir)
+					"working_dir", args.WorkingDir,
+					"has_env", args.Env != nil)
 
-				result, err = executor.ExecuteCommandInDir(args.Command, args.WorkingDir)
+				result, err = executor.ExecuteCommandInDir(args.Command, args.WorkingDir, args.Env)
 			} else {
 				// 作業ディレクトリが指定されていない場合、通常の実行を行う
-				result, err = executor.ExecuteCommand(args.Command)
+				result, err = executor.ExecuteCommand(args.Command, args.Env)
 			}
 
 			// エラー処理

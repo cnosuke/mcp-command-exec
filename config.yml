@@ -28,3 +28,10 @@ command_exec:
     - "/bin"
     - "/Users/cnosuke/.local/share/mise/shims/"
   path_behavior: "prepend" # prepend, replace, append
+  # 環境変数設定
+  environment:
+    HOME: "/Users/cnosuke"
+    GOPATH: "/Users/cnosuke/dev"
+    GOROOT: "/Users/cnosuke/.local/share/mise/installs/go/latest"
+    GOMODCACHE: "/Users/cnosuke/dev/pkg/mod"
+    LANG: "ja_JP.UTF-8"

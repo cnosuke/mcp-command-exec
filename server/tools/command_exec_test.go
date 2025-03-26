@@ -14,8 +14,8 @@ type MockCommandExecutor struct {
 	mock.Mock
 }
 
-func (m *MockCommandExecutor) ExecuteCommand(command string) (types.CommandResult, error) {
-	args := m.Called(command)
+func (m *MockCommandExecutor) ExecuteCommand(command string, env map[string]string) (types.CommandResult, error) {
+	args := m.Called(command, env)
 	var result types.CommandResult
 	if val, ok := args.Get(0).(types.CommandResult); ok {
 		result = val
@@ -29,8 +29,8 @@ func (m *MockCommandExecutor) ExecuteCommand(command string) (types.CommandResul
 	return result, args.Error(1)
 }
 
-func (m *MockCommandExecutor) ExecuteCommandInDir(command, workingDir string) (types.CommandResult, error) {
-	args := m.Called(command, workingDir)
+func (m *MockCommandExecutor) ExecuteCommandInDir(command, workingDir string, env map[string]string) (types.CommandResult, error) {
+	args := m.Called(command, workingDir, env)
 	var result types.CommandResult
 	if val, ok := args.Get(0).(types.CommandResult); ok {
 		result = val
@@ -77,7 +77,7 @@ func TestRegisterCommandExecTool(t *testing.T) {
 	// モックExecutorを設定
 	mockExecutor := new(MockCommandExecutor)
 	mockExecutor.On("IsCommandAllowed", "ls -la").Return(true)
-	mockExecutor.On("ExecuteCommand", "ls -la").Return(types.CommandResult{
+	mockExecutor.On("ExecuteCommand", "ls -la", mock.Anything).Return(types.CommandResult{
 		Stdout: "file1\nfile2\nfile3", 
 		WorkingDir: "/tmp", 
 		Command: "ls -la", 

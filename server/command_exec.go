@@ -116,8 +116,8 @@ func (s *CommandExecutorServer) IsDirectoryAllowed(dir string) bool {
 	return false
 }
 
-// ExecuteCommand - コマンド実行関数
-func (s *CommandExecutorServer) ExecuteCommand(command string) (types.CommandResult, error) {
+// ExecuteCommand - コマンド実行関数（環境変数サポート付き）
+func (s *CommandExecutorServer) ExecuteCommand(command string, env map[string]string) (types.CommandResult, error) {
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
 		return types.CommandResult{
@@ -167,15 +167,16 @@ func (s *CommandExecutorServer) ExecuteCommand(command string) (types.CommandRes
 	zap.S().Debugw("executing binary",
 		"binary_path", binaryPath,
 		"args", args,
-		"working_dir", s.currentWorkingDir)
+		"working_dir", s.currentWorkingDir,
+		"custom_env", env != nil)
 	
 	cmd := exec.Command(binaryPath, args...)
 	
 	// 重要: 作業ディレクトリを設定
 	cmd.Dir = s.currentWorkingDir
 	
-	// 環境変数の設定
-	cmd.Env = s.buildEnvironment()
+	// 環境変数の設定（追加の環境変数を渡す）
+	cmd.Env = s.buildEnvironment(env)
 	
 	// 標準出力と標準エラー出力をキャプチャ
 	var stdout, stderr bytes.Buffer
@@ -341,67 +342,80 @@ func (s *CommandExecutorServer) ResolveBinaryPath(command string) (string, error
 	return "", fmt.Errorf("command not found: %s", cmdName)
 }
 
-// buildEnvironment - 環境変数を構築
-func (s *CommandExecutorServer) buildEnvironment() []string {
+// buildEnvironment - 環境変数を構築（設定と追加の環境変数を考慮）
+func (s *CommandExecutorServer) buildEnvironment(additionalEnv map[string]string) []string {
 	env := os.Environ()
 	
-	// 既存のPATHを取得
+	// 設定ファイルからの環境変数を追加（上書き用のマップを作成）
+	envMap := make(map[string]string)
+	
+	// 現在の環境変数をマップに変換
+	for _, e := range env {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+	
+	// 設定ファイルの環境変数を適用
+	if s.cfg.CommandExec.Environment != nil {
+		for k, v := range s.cfg.CommandExec.Environment {
+			envMap[k] = v
+		}
+	}
+	
+	// 追加の環境変数を適用（コマンド実行ごとに指定されたもの）
+	if additionalEnv != nil {
+		for k, v := range additionalEnv {
+			envMap[k] = v
+		}
+	}
+	
+	// PATHの処理
 	var path string
-	for _, e := range env {
-		if strings.HasPrefix(e, "PATH=") {
-			path = strings.TrimPrefix(e, "PATH=")
-			break
+	if p, ok := envMap["PATH"]; ok {
+		path = p
+	}
+	
+	// 検索パスが設定されている場合はPATHを更新
+	if len(s.searchPaths) > 0 {
+		// 新しいPATHを構築
+		var newPath string
+		switch s.pathBehavior {
+		case "prepend":
+			newPath = strings.Join(s.searchPaths, string(os.PathListSeparator)) + string(os.PathListSeparator) + path
+		case "append":
+			newPath = path + string(os.PathListSeparator) + strings.Join(s.searchPaths, string(os.PathListSeparator))
+		case "replace":
+			newPath = strings.Join(s.searchPaths, string(os.PathListSeparator))
+		default: // prepend をデフォルトとする
+			newPath = strings.Join(s.searchPaths, string(os.PathListSeparator)) + string(os.PathListSeparator) + path
 		}
+		
+		// PATHを更新
+		envMap["PATH"] = newPath
 	}
 	
-	// 検索パスが設定されていない場合は現在の環境変数をそのまま返す
-	if len(s.searchPaths) == 0 {
-		return env
-	}
-	
-	// 新しいPATHを構築
-	var newPath string
-	switch s.pathBehavior {
-	case "prepend":
-		newPath = strings.Join(s.searchPaths, string(os.PathListSeparator)) + string(os.PathListSeparator) + path
-	case "append":
-		newPath = path + string(os.PathListSeparator) + strings.Join(s.searchPaths, string(os.PathListSeparator))
-	case "replace":
-		newPath = strings.Join(s.searchPaths, string(os.PathListSeparator))
-	default: // prepend をデフォルトとする
-		newPath = strings.Join(s.searchPaths, string(os.PathListSeparator)) + string(os.PathListSeparator) + path
-	}
-	
-	// 環境変数を更新
+	// マップを環境変数形式の文字列配列に変換
 	var updatedEnv []string
-	pathUpdated := false
-	for _, e := range env {
-		if strings.HasPrefix(e, "PATH=") {
-			updatedEnv = append(updatedEnv, "PATH="+newPath)
-			pathUpdated = true
-		} else {
-			updatedEnv = append(updatedEnv, e)
-		}
-	}
-	
-	// PATHが見つからなかった場合は追加
-	if !pathUpdated {
-		updatedEnv = append(updatedEnv, "PATH="+newPath)
+	for k, v := range envMap {
+		updatedEnv = append(updatedEnv, fmt.Sprintf("%s=%s", k, v))
 	}
 	
 	// デバッグログ
 	zap.S().Debugw("environment variables set",
-		"PATH", newPath,
-		"path_behavior", s.pathBehavior)
+		"PATH", envMap["PATH"],
+		"path_behavior", s.pathBehavior,
+		"custom_env_count", len(additionalEnv))
 	
 	return updatedEnv
 }
 
-// ExecuteCommandInDir - 指定されたディレクトリでコマンドを実行
-func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string) (types.CommandResult, error) {
+// ExecuteCommandInDir - 指定されたディレクトリでコマンドを実行（環境変数サポート付き）
+func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string, env map[string]string) (types.CommandResult, error) {
 	// 指定された作業ディレクトリが空または未指定の場合は通常の実行を行う
 	if workingDir == "" {
-		return s.ExecuteCommand(command)
+		return s.ExecuteCommand(command, env)
 	}
 	
 	// ディレクトリの存在確認
@@ -483,11 +497,12 @@ func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string) 
 	zap.S().Debugw("executing binary in specific directory",
 		"binary_path", binaryPath,
 		"args", args,
-		"working_dir", workingDir)
+		"working_dir", workingDir,
+		"custom_env", env != nil)
 	
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = workingDir
-	cmd.Env = s.buildEnvironment()
+	cmd.Env = s.buildEnvironment(env)
 	
 	// 標準出力と標準エラー出力をキャプチャ
 	var stdout, stderr bytes.Buffer
