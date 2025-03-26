@@ -1,3 +1,6 @@
+log: 'log/mcp-command-exec.log'
+debug: false
+
 command_exec:
   allowed_commands:
     - git

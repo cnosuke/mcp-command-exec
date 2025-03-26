@@ -25,6 +25,8 @@ var defaultAllowedCommands = []string{
 
 // Config - Application configuration
 type Config struct {
+	Log    string `yaml:"log" env:"LOG_PATH"`
+	Debug  bool   `yaml:"debug" default:"false" env:"DEBUG"`
 	CommandExec struct {
 		AllowedCommands []string `yaml:"allowed_commands"`
 		// 作業ディレクトリ関連設定
