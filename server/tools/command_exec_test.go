@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/cnosuke/mcp-command-exec/types"
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -69,10 +69,15 @@ func (m *MockCommandExecutor) GetAllowedCommands() string {
 	return args.String(0)
 }
 
-// memoryトランスポートを使わないテスト
+// テスト用のモックMCPサーバーを作成するヘルパー関数
+func createTestMCPServer() *server.MCPServer {
+	return server.NewMCPServer("test-server", "1.0.0")
+}
+
+// 新しいAPIに対応したテスト
 func TestRegisterCommandExecTool(t *testing.T) {
 	// テスト用のサーバーを作成
-	server := mcp.NewServer(nil) // トランスポートはnilでOK
+	mcpServer := createTestMCPServer()
 
 	// モックExecutorを設定
 	mockExecutor := new(MockCommandExecutor)
@@ -87,7 +92,7 @@ func TestRegisterCommandExecTool(t *testing.T) {
 	mockExecutor.On("GetCurrentWorkingDir").Return("/tmp")
 
 	// ツールを登録（エラーがなければ登録成功と見なす）
-	err := RegisterCommandExecTool(server, mockExecutor)
+	err := RegisterCommandExecTool(mcpServer, mockExecutor)
 	assert.NoError(t, err, "ツールの登録に失敗しました")
 }
 

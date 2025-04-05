@@ -1,16 +1,17 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/cnosuke/mcp-command-exec/types"
-	"github.com/cockroachdb/errors"
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"go.uber.org/zap"
 )
 
-// CommandExecutorArgs - Arguments for command_exec tool
+// CommandExecutorArgs - Arguments for command_exec tool (kept for testing compatibility)
 type CommandExecutorArgs struct {
 	Command    string            `json:"command" jsonschema:"description=The command to execute"`
 	WorkingDir string            `json:"working_dir,omitempty" jsonschema:"description=Optional working directory for this command only"`
@@ -28,75 +29,113 @@ type CommandExecutor interface {
 }
 
 // RegisterCommandExecTool - Register the command_exec tool
-func RegisterCommandExecTool(server *mcp.Server, executor CommandExecutor) error {
+func RegisterCommandExecTool(mcpServer *server.MCPServer, executor CommandExecutor) error {
 	zap.S().Debugw("registering command_exec tool")
+	
 	description := fmt.Sprint(
 		"Execute a system command from a predefined allowed list.",
 		"Recommended to specify the directory to execute the command in using the `working_dir` parameter.",
 		"Allowed commands: ",
 		executor.GetAllowedCommands())
-	err := server.RegisterTool("command_exec", description,
-		func(args CommandExecutorArgs) (*mcp.ToolResponse, error) {
-			zap.S().Debugw("executing command_exec",
-				"command", args.Command)
 
-			// 空のコマンドをチェック
-			if args.Command == "" {
-				zap.S().Warnw("empty command provided")
-				return nil, errors.New("empty command provided")
-			}
+	// Define the tool using the NewTool function with options
+	commandExecTool := mcp.NewTool("command_exec",
+		mcp.WithDescription(description),
+		mcp.WithString("command",
+			mcp.Required(),
+			mcp.Description("The command to execute"),
+		),
+		mcp.WithString("working_dir",
+			mcp.Description("Optional working directory for this command only"),
+		),
+		mcp.WithObject("env",
+			mcp.Description("Optional environment variables for this command only"),
+			// The object can have any string properties
+		),
+	)
 
-			// コマンドが許可リストに含まれているかチェック
-			if !executor.IsCommandAllowed(args.Command) {
-				zap.S().Warnw("command not allowed",
-					"command", args.Command)
-				return nil, errors.New(fmt.Sprintf("command not allowed: %s", args.Command))
-			}
+	// Add the tool handler
+	mcpServer.AddTool(commandExecTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// Extract parameters
+		var command string
+		var workingDir string
+		var env map[string]string
 
-			var result types.CommandResult
-			var err error
+		// Get command parameter
+		if commandVal, ok := request.Params.Arguments["command"].(string); ok {
+			command = commandVal
+		}
 
-			// 作業ディレクトリが指定されている場合、パラメータを使用して実行
-			if args.WorkingDir != "" {
-				zap.S().Debugw("executing command in specified directory",
-					"command", args.Command,
-					"working_dir", args.WorkingDir,
-					"has_env", args.Env != nil)
+		// Get working_dir parameter
+		if workingDirVal, ok := request.Params.Arguments["working_dir"].(string); ok {
+			workingDir = workingDirVal
+		}
 
-				result, err = executor.ExecuteCommandInDir(args.Command, args.WorkingDir, args.Env)
-			} else {
-				// 作業ディレクトリが指定されていない場合、通常の実行を行う
-				result, err = executor.ExecuteCommand(args.Command, args.Env)
-			}
-
-			// エラー処理
-			if err != nil {
-				zap.S().Errorw("failed to execute command",
-					"command", args.Command,
-					"error", err)
-
-				// エラーがあってもレスポンスは返す
-				jsonBytes, jsonErr := json.Marshal(result)
-				if jsonErr != nil {
-					zap.S().Errorw("failed to marshal result to JSON", "error", jsonErr)
-					return mcp.NewToolResponse(mcp.NewTextContent(fmt.Sprintf("Command failed: %s", err.Error()))), nil
+		// Get env parameter
+		if envVal, ok := request.Params.Arguments["env"].(map[string]interface{}); ok {
+			env = make(map[string]string)
+			for k, v := range envVal {
+				if strVal, ok := v.(string); ok {
+					env[k] = strVal
 				}
-				return mcp.NewToolResponse(mcp.NewTextContent(string(jsonBytes))), nil
 			}
+		}
 
-			// JSONを文字列に変換してTextContentとして返す
-			jsonBytes, err := json.Marshal(result)
-			if err != nil {
-				zap.S().Errorw("failed to marshal result to JSON", "error", err)
-				return nil, errors.Wrap(err, "failed to marshal result to JSON")
+		zap.S().Debugw("executing command_exec",
+			"command", command)
+
+		// 空のコマンドをチェック
+		if command == "" {
+			zap.S().Warnw("empty command provided")
+			return mcp.NewToolResultError("empty command provided"), nil
+		}
+
+		// コマンドが許可リストに含まれているかチェック
+		if !executor.IsCommandAllowed(command) {
+			zap.S().Warnw("command not allowed",
+				"command", command)
+			return mcp.NewToolResultError(fmt.Sprintf("command not allowed: %s", command)), nil
+		}
+
+		var result types.CommandResult
+		var err error
+
+		// 作業ディレクトリが指定されている場合、パラメータを使用して実行
+		if workingDir != "" {
+			zap.S().Debugw("executing command in specified directory",
+				"command", command,
+				"working_dir", workingDir,
+				"has_env", env != nil)
+
+			result, err = executor.ExecuteCommandInDir(command, workingDir, env)
+		} else {
+			// 作業ディレクトリが指定されていない場合、通常の実行を行う
+			result, err = executor.ExecuteCommand(command, env)
+		}
+
+		// エラー処理
+		if err != nil {
+			zap.S().Errorw("failed to execute command",
+				"command", command,
+				"error", err)
+
+			// エラーがあってもレスポンスは返す
+			jsonBytes, jsonErr := json.Marshal(result)
+			if jsonErr != nil {
+				zap.S().Errorw("failed to marshal result to JSON", "error", jsonErr)
+				return mcp.NewToolResultText(fmt.Sprintf("Command failed: %s", err.Error())), nil
 			}
-			return mcp.NewToolResponse(mcp.NewTextContent(string(jsonBytes))), nil
-		})
+			return mcp.NewToolResultText(string(jsonBytes)), nil
+		}
 
-	if err != nil {
-		zap.S().Errorw("failed to register command_exec tool", "error", err)
-		return errors.Wrap(err, "failed to register command_exec tool")
-	}
+		// JSONを文字列に変換してTextContentとして返す
+		jsonBytes, err := json.Marshal(result)
+		if err != nil {
+			zap.S().Errorw("failed to marshal result to JSON", "error", err)
+			return mcp.NewToolResultError("failed to marshal result to JSON"), nil
+		}
+		return mcp.NewToolResultText(string(jsonBytes)), nil
+	})
 
 	return nil
 }

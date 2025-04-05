@@ -1,11 +1,11 @@
 package tools
 
 import (
-	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // RegisterAllTools - Register all tools with the server
-func RegisterAllTools(mcpServer *mcp.Server, executor CommandExecutor) error {
+func RegisterAllTools(mcpServer *server.MCPServer, executor CommandExecutor) error {
 	// Register command_exec tool
 	if err := RegisterCommandExecTool(mcpServer, executor); err != nil {
 		return err
