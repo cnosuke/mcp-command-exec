@@ -15,6 +15,12 @@ command_exec:
     - pwd
     - mv
     - cp
+    - python
+    - python3
+    - pip
+    - ruby
+    - gem
+    - bundle
   # 作業ディレクトリ設定
   default_working_dir: "/Users/cnosuke/src"
   allowed_dirs:
