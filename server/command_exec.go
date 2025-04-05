@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall" // syscallを追加
+	"syscall"
 
 	"github.com/cnosuke/mcp-command-exec/config"
 	"github.com/cnosuke/mcp-command-exec/types"
@@ -21,8 +21,8 @@ type CommandExecutorServer struct {
 	currentWorkingDir string
 	allowedDirs       []string
 	showWorkingDir    bool
-	searchPaths       []string  // 追加: コマンド探索パス
-	pathBehavior      string    // 追加: パスの扱い方
+	searchPaths       []string
+	pathBehavior      string
 	cfg               *config.Config
 }
 
@@ -31,26 +31,25 @@ func NewCommandExecutorServer(cfg *config.Config) (*CommandExecutorServer, error
 	zap.S().Infow("creating new Command Executor server",
 		"allowed_commands", cfg.CommandExec.AllowedCommands)
 
-	// デフォルト作業ディレクトリの初期化ロジック
 	workingDir := cfg.CommandExec.DefaultWorkingDir
 	if workingDir == "" {
-		// 環境変数HOMEまたはデフォルト値を使用
+		// Use the HOME environment variable or a default value
 		if home := os.Getenv("HOME"); home != "" {
 			workingDir = home
 		} else {
 			workingDir = "/tmp"
 		}
 	}
-	
-	// ディレクトリの存在確認
+
+	// Check if the directory exists
 	if _, err := os.Stat(workingDir); os.IsNotExist(err) {
-		// 存在しない場合はデフォルトに戻す
+		// Fall back to default if it doesn't exist
 		workingDir = "/tmp"
 		zap.S().Warnw("Default working directory does not exist, falling back to /tmp",
 			"original_dir", cfg.CommandExec.DefaultWorkingDir)
 	}
-	
-	// PathBehaviorのバリデーション
+
+	// Validate PathBehavior
 	pathBehavior := cfg.CommandExec.PathBehavior
 	if pathBehavior != "prepend" && pathBehavior != "replace" && pathBehavior != "append" {
 		zap.S().Warnw("Invalid path_behavior setting, using default 'prepend'",
@@ -71,19 +70,19 @@ func NewCommandExecutorServer(cfg *config.Config) (*CommandExecutorServer, error
 
 // IsCommandAllowed - Check if a command is in the allowed list
 func (s *CommandExecutorServer) IsCommandAllowed(command string) bool {
-	// 空のコマンドは許可しない
+	// Don't allow empty commands
 	if command == "" {
 		return false
 	}
 
-	// コマンドの最初の部分（プログラム名）を取得
+	// Get the first part of the command (program name)
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
 		return false
 	}
 	programName := parts[0]
 
-	// 許可リストにプログラム名があるかチェック
+	// Check if the program name is in the allowed list
 	for _, allowed := range s.AllowedCommands {
 		if programName == allowed {
 			return true
@@ -98,25 +97,25 @@ func (s *CommandExecutorServer) GetAllowedCommands() string {
 	return strings.Join(s.AllowedCommands, ", ")
 }
 
-// IsDirectoryAllowed - 指定されたディレクトリへのアクセスが許可されているか確認
+// IsDirectoryAllowed - Check if access to the specified directory is allowed
 func (s *CommandExecutorServer) IsDirectoryAllowed(dir string) bool {
-	// ディレクトリアクセス制限の実装
-	// 許可リストが空の場合はすべて許可
+	// Directory access restriction implementation
+	// Allow all if the allowed list is empty
 	if len(s.allowedDirs) == 0 {
 		return true
 	}
-	
-	// 許可リストにマッチするか確認
+
+	// Check if it matches the allowed list
 	for _, allowedDir := range s.allowedDirs {
 		if strings.HasPrefix(dir, allowedDir) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
-// ExecuteCommand - コマンド実行関数（環境変数サポート付き）
+// ExecuteCommand - Command execution function (with environment variable support)
 func (s *CommandExecutorServer) ExecuteCommand(command string, env map[string]string) (types.CommandResult, error) {
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
@@ -127,26 +126,26 @@ func (s *CommandExecutorServer) ExecuteCommand(command string, env map[string]st
 			Error:      "empty command",
 		}, errors.New("empty command")
 	}
-	
-	// コマンド実行結果の初期化
+
+	// Initialize command execution result
 	result := types.CommandResult{
 		Command:    command,
 		WorkingDir: s.currentWorkingDir,
 		ExitCode:   0,
 	}
-	
-	// cdコマンドの特別処理
+
+	// Special handling for cd command
 	if parts[0] == "cd" {
 		return s.HandleCdCommand(parts)
 	}
-	
-	// pwdコマンドの特別処理
+
+	// Special handling for pwd command
 	if parts[0] == "pwd" {
 		result.Stdout = s.currentWorkingDir
 		return result, nil
 	}
-	
-	// コマンドの絶対パスを解決
+
+	// Resolve absolute path for the command
 	binaryPath, err := s.ResolveBinaryPath(command)
 	if err != nil {
 		return types.CommandResult{
@@ -157,28 +156,28 @@ func (s *CommandExecutorServer) ExecuteCommand(command string, env map[string]st
 		}, err
 	}
 
-	// 絶対パスを抽出して、引数を検出
+	// Extract the absolute path and detect arguments
 	var args []string
 	if len(parts) > 1 {
 		args = parts[1:]
 	}
-	
-	// シェルを使わずに直接コマンドを実行
+
+	// Execute the command directly without using a shell
 	zap.S().Debugw("executing binary",
 		"binary_path", binaryPath,
 		"args", args,
 		"working_dir", s.currentWorkingDir,
 		"custom_env", env != nil)
-	
+
 	cmd := exec.Command(binaryPath, args...)
-	
-	// 重要: 作業ディレクトリを設定
+
+	// Important: Set the working directory
 	cmd.Dir = s.currentWorkingDir
-	
-	// 環境変数の設定（追加の環境変数を渡す）
+
+	// Set environment variables (pass additional env vars)
 	cmd.Env = s.buildEnvironment(env)
-	
-	// 標準出力と標準エラー出力をキャプチャ
+
+	// Capture stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -188,43 +187,43 @@ func (s *CommandExecutorServer) ExecuteCommand(command string, env map[string]st
 		"args", args,
 		"working_dir", s.currentWorkingDir)
 
-	// コマンド実行
+	// Execute command
 	err = cmd.Run()
-	
-	// 出力結果の設定
+
+	// Set output results
 	result.Stdout = stdout.String()
 	result.Stderr = stderr.String()
-	
+
 	if err != nil {
-		// エラー情報を設定
+		// Set error information
 		result.Error = err.Error()
-		
-		// 終了コードの取得
+
+		// Get exit code
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 		} else {
 			result.ExitCode = 1
 		}
-		
+
 		return result, err
 	}
-	
+
 	return result, nil
 }
 
-// HandleCdCommand - cdコマンドを処理し、作業ディレクトリを更新
+// HandleCdCommand - Process cd command and update the working directory
 func (s *CommandExecutorServer) HandleCdCommand(parts []string) (types.CommandResult, error) {
 	result := types.CommandResult{
 		Command:    strings.Join(parts, " "),
 		WorkingDir: s.currentWorkingDir,
 		ExitCode:   0,
 	}
-	
+
 	var message string
 	var err error
-	
+
 	if len(parts) < 2 {
-		// 引数なしの場合はホームディレクトリに移動
+		// If no argument, change to home directory
 		if home := os.Getenv("HOME"); home != "" {
 			s.currentWorkingDir = home
 			message = fmt.Sprintf("Changed directory to %s", home)
@@ -237,23 +236,23 @@ func (s *CommandExecutorServer) HandleCdCommand(parts []string) (types.CommandRe
 			return result, err
 		}
 	} else {
-		// ディレクトリパスの解決
+		// Resolve directory path
 		targetDir := parts[1]
 		var newDir string
-		
+
 		if filepath.IsAbs(targetDir) {
 			newDir = targetDir
 		} else {
 			newDir = filepath.Join(s.currentWorkingDir, targetDir)
 		}
-		
-		// パスの正規化（シンボリックリンク解決など）
+
+		// Normalize path (resolve symlinks, etc.)
 		evalDir, evalErr := filepath.EvalSymlinks(newDir)
 		if evalErr == nil {
 			newDir = evalDir
 		}
-		
-		// ディレクトリの存在確認
+
+		// Check if directory exists
 		stat, err := os.Stat(newDir)
 		if err != nil || !stat.IsDir() {
 			errMsg := fmt.Sprintf("Directory does not exist: %s", newDir)
@@ -261,53 +260,53 @@ func (s *CommandExecutorServer) HandleCdCommand(parts []string) (types.CommandRe
 			result.ExitCode = 1
 			return result, errors.New(errMsg)
 		}
-		
-		// アクセス権限のチェック
+
+		// Check access permissions
 		if !s.IsDirectoryAllowed(newDir) {
 			errMsg := fmt.Sprintf("Access to directory not allowed: %s", newDir)
 			result.Error = errMsg
 			result.ExitCode = 1
 			return result, errors.New(errMsg)
 		}
-		
-		// 作業ディレクトリを更新
+
+		// Update working directory
 		s.currentWorkingDir = newDir
 		message = fmt.Sprintf("Changed directory to %s", newDir)
 		result.Stdout = message
 		result.WorkingDir = newDir
 	}
-	
+
 	return result, nil
 }
 
-// GetCurrentWorkingDir - 現在の作業ディレクトリを取得
+// GetCurrentWorkingDir - Get the current working directory
 func (s *CommandExecutorServer) GetCurrentWorkingDir() string {
 	return s.currentWorkingDir
 }
 
-// isExecutable - ファイルが実行可能かチェック
+// isExecutable - Check if a file is executable
 func isExecutable(info os.FileInfo) bool {
-	// Unixシステムでは実行権限をチェック
+	// Check execution permissions on Unix systems
 	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
 		return (stat.Mode & 0111) != 0
 	}
-	// Windows等では拡張子でチェックなど追加処理が必要だが、
-	// 現在はUnix系OSのみをサポート
+	// Additional checks would be needed for Windows (by extension, etc.)
+	// Currently only supporting Unix-like OS
 	return true
 }
 
-// ResolveBinaryPath - コマンド名から実行可能ファイルの絶対パスを解決
+// ResolveBinaryPath - Resolve the absolute path of an executable from a command name
 func (s *CommandExecutorServer) ResolveBinaryPath(command string) (string, error) {
-	// コマンド名を取得（スペースで区切られた最初の部分）
+	// Get the command name (first part split by spaces)
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
 		return "", errors.New("empty command")
 	}
 	cmdName := parts[0]
 
-	// 絶対パスの場合はそのまま返す
+	// If it's an absolute path, return it as is
 	if filepath.IsAbs(cmdName) {
-		// 実行可能かチェック
+		// Check if it's executable
 		info, err := os.Stat(cmdName)
 		if err != nil {
 			return "", fmt.Errorf("command not found: %s", cmdName)
@@ -318,21 +317,21 @@ func (s *CommandExecutorServer) ResolveBinaryPath(command string) (string, error
 		return cmdName, nil
 	}
 
-	// 設定された探索パスから実行可能ファイルを探す
+	// Search for executable in the configured search paths
 	for _, dir := range s.searchPaths {
 		path := filepath.Join(dir, cmdName)
 		info, err := os.Stat(path)
 		if err == nil {
-			// ファイルが存在し、実行可能かチェック
+			// Check if file exists and is executable
 			if !info.IsDir() && isExecutable(info) {
 				return path, nil
 			}
 		}
 	}
 
-	// 見つからなかった場合はシステムのPATHを使って探す（path_behaviorに応じて）
+	// If not found, search using the system PATH (according to path_behavior)
 	if s.pathBehavior != "replace" {
-		// LookPath はシステムのPATHから実行可能ファイルを探す
+		// LookPath searches for an executable in the system PATH
 		path, err := exec.LookPath(cmdName)
 		if err == nil {
 			return path, nil
@@ -342,44 +341,44 @@ func (s *CommandExecutorServer) ResolveBinaryPath(command string) (string, error
 	return "", fmt.Errorf("command not found: %s", cmdName)
 }
 
-// buildEnvironment - 環境変数を構築（設定と追加の環境変数を考慮）
+// buildEnvironment - Build environment variables (considering configuration and additional env vars)
 func (s *CommandExecutorServer) buildEnvironment(additionalEnv map[string]string) []string {
 	env := os.Environ()
-	
-	// 設定ファイルからの環境変数を追加（上書き用のマップを作成）
+
+	// Add environment variables from config file (create map for overrides)
 	envMap := make(map[string]string)
-	
-	// 現在の環境変数をマップに変換
+
+	// Convert current environment variables to a map
 	for _, e := range env {
 		parts := strings.SplitN(e, "=", 2)
 		if len(parts) == 2 {
 			envMap[parts[0]] = parts[1]
 		}
 	}
-	
-	// 設定ファイルの環境変数を適用
+
+	// Apply environment variables from config file
 	if s.cfg.CommandExec.Environment != nil {
 		for k, v := range s.cfg.CommandExec.Environment {
 			envMap[k] = v
 		}
 	}
-	
-	// 追加の環境変数を適用（コマンド実行ごとに指定されたもの）
+
+	// Apply additional environment variables (specified per command execution)
 	if additionalEnv != nil {
 		for k, v := range additionalEnv {
 			envMap[k] = v
 		}
 	}
-	
-	// PATHの処理
+
+	// Process PATH
 	var path string
 	if p, ok := envMap["PATH"]; ok {
 		path = p
 	}
-	
-	// 検索パスが設定されている場合はPATHを更新
+
+	// Update PATH if search paths are configured
 	if len(s.searchPaths) > 0 {
-		// 新しいPATHを構築
+		// Build new PATH
 		var newPath string
 		switch s.pathBehavior {
 		case "prepend":
@@ -388,37 +387,37 @@ func (s *CommandExecutorServer) buildEnvironment(additionalEnv map[string]string
 			newPath = path + string(os.PathListSeparator) + strings.Join(s.searchPaths, string(os.PathListSeparator))
 		case "replace":
 			newPath = strings.Join(s.searchPaths, string(os.PathListSeparator))
-		default: // prepend をデフォルトとする
+		default: // Use prepend as default
 			newPath = strings.Join(s.searchPaths, string(os.PathListSeparator)) + string(os.PathListSeparator) + path
 		}
-		
-		// PATHを更新
+
+		// Update PATH
 		envMap["PATH"] = newPath
 	}
-	
-	// マップを環境変数形式の文字列配列に変換
+
+	// Convert map to environment variable format string array
 	var updatedEnv []string
 	for k, v := range envMap {
 		updatedEnv = append(updatedEnv, fmt.Sprintf("%s=%s", k, v))
 	}
-	
-	// デバッグログ
+
+	// Debug log
 	zap.S().Debugw("environment variables set",
 		"PATH", envMap["PATH"],
 		"path_behavior", s.pathBehavior,
 		"custom_env_count", len(additionalEnv))
-	
+
 	return updatedEnv
 }
 
-// ExecuteCommandInDir - 指定されたディレクトリでコマンドを実行（環境変数サポート付き）
+// ExecuteCommandInDir - Execute a command in the specified directory (with environment variable support)
 func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string, env map[string]string) (types.CommandResult, error) {
-	// 指定された作業ディレクトリが空または未指定の場合は通常の実行を行う
+	// If the specified working directory is empty or not specified, execute normally
 	if workingDir == "" {
 		return s.ExecuteCommand(command, env)
 	}
-	
-	// ディレクトリの存在確認
+
+	// Check if directory exists
 	stat, err := os.Stat(workingDir)
 	if err != nil || !stat.IsDir() {
 		errMsg := fmt.Sprintf("Directory does not exist: %s", workingDir)
@@ -429,8 +428,8 @@ func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string, 
 			Error:      errMsg,
 		}, errors.New(errMsg)
 	}
-	
-	// アクセス権限のチェック
+
+	// Check access permissions
 	if !s.IsDirectoryAllowed(workingDir) {
 		errMsg := fmt.Sprintf("Access to directory not allowed: %s", workingDir)
 		return types.CommandResult{
@@ -440,15 +439,15 @@ func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string, 
 			Error:      errMsg,
 		}, errors.New(errMsg)
 	}
-	
-	// 現在の作業ディレクトリを保存
+
+	// Save the current working directory
 	originalWorkingDir := s.currentWorkingDir
-	
-	// 作業ディレクトリを一時的に変更
+
+	// Temporarily change the working directory
 	s.currentWorkingDir = workingDir
-	
-	// 修正：直接ExecuteCommandを呼び出さず、処理を少し共通化
-	// コマンドのチェックと初期化
+
+	// Modified: Don't call ExecuteCommand directly, partially commonize processing
+	// Check and initialize the command
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
 		return types.CommandResult{
@@ -458,28 +457,28 @@ func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string, 
 			Error:      "empty command",
 		}, errors.New("empty command")
 	}
-	
-	// 結果の初期化
+
+	// Initialize result
 	result := types.CommandResult{
 		Command:    command,
 		WorkingDir: workingDir,
 		ExitCode:   0,
 	}
 
-	// cdコマンドの場合はエラーを返す（一時的なディレクトリ変更なので、cd操作はできない）
+	// Return error for cd command (can't change directory in temporary dir change)
 	if parts[0] == "cd" {
 		result.Error = "cd command is not supported in ExecuteCommandInDir"
 		result.ExitCode = 1
 		return result, errors.New(result.Error)
 	}
-	
-	// pwdコマンドの場合は現在の作業ディレクトリを返す
+
+	// For pwd command, return the current working directory
 	if parts[0] == "pwd" {
 		result.Stdout = workingDir
 		return result, nil
 	}
 
-	// コマンドの絶対パスを解決
+	// Resolve absolute path for the command
 	binaryPath, err := s.ResolveBinaryPath(command)
 	if err != nil {
 		result.Error = err.Error()
@@ -487,50 +486,50 @@ func (s *CommandExecutorServer) ExecuteCommandInDir(command, workingDir string, 
 		return result, err
 	}
 
-	// 引数を検出
+	// Detect arguments
 	var args []string
 	if len(parts) > 1 {
 		args = parts[1:]
 	}
-	
-	// コマンドを実行
+
+	// Execute command
 	zap.S().Debugw("executing binary in specific directory",
 		"binary_path", binaryPath,
 		"args", args,
 		"working_dir", workingDir,
 		"custom_env", env != nil)
-	
+
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = workingDir
 	cmd.Env = s.buildEnvironment(env)
-	
-	// 標準出力と標準エラー出力をキャプチャ
+
+	// Capture stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	// コマンド実行
+	// Execute command
 	execErr := cmd.Run()
-	
-	// 出力結果の設定
+
+	// Set output results
 	result.Stdout = stdout.String()
 	result.Stderr = stderr.String()
-	
+
 	if execErr != nil {
-		// エラー情報を設定
+		// Set error information
 		result.Error = execErr.Error()
-		
-		// 終了コードの取得
+
+		// Get exit code
 		if exitErr, ok := execErr.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
 		} else {
 			result.ExitCode = 1
 		}
 	}
-	
-	// 作業ディレクトリを元に戻す
+
+	// Restore original working directory
 	s.currentWorkingDir = originalWorkingDir
-	
-	// 実行結果を返す
+
+	// Return execution result
 	return result, execErr
 }

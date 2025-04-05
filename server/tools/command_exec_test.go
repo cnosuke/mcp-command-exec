@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// モックCommandExecutor
+// Mock CommandExecutor
 type MockCommandExecutor struct {
 	mock.Mock
 }
@@ -20,9 +20,9 @@ func (m *MockCommandExecutor) ExecuteCommand(command string, env map[string]stri
 	if val, ok := args.Get(0).(types.CommandResult); ok {
 		result = val
 	} else if str, ok := args.Get(0).(string); ok {
-		// 後方互換性のためにstringを受け取った場合は変換
+		// For backward compatibility, convert string if received
 		result = types.CommandResult{
-			Stdout: str,
+			Stdout:     str,
 			WorkingDir: "/tmp",
 		}
 	}
@@ -35,9 +35,9 @@ func (m *MockCommandExecutor) ExecuteCommandInDir(command, workingDir string, en
 	if val, ok := args.Get(0).(types.CommandResult); ok {
 		result = val
 	} else if str, ok := args.Get(0).(string); ok {
-		// 後方互換性のためにstringを受け取った場合は変換
+		// For backward compatibility, convert string if received
 		result = types.CommandResult{
-			Stdout: str,
+			Stdout:     str,
 			WorkingDir: workingDir,
 		}
 	}
@@ -69,40 +69,40 @@ func (m *MockCommandExecutor) GetAllowedCommands() string {
 	return args.String(0)
 }
 
-// テスト用のモックMCPサーバーを作成するヘルパー関数
+// Helper function to create a mock MCP server for testing
 func createTestMCPServer() *server.MCPServer {
 	return server.NewMCPServer("test-server", "1.0.0")
 }
 
-// 新しいAPIに対応したテスト
+// Test for the new API
 func TestRegisterCommandExecTool(t *testing.T) {
-	// テスト用のサーバーを作成
+	// Create a server for testing
 	mcpServer := createTestMCPServer()
 
-	// モックExecutorを設定
+	// Configure mock executor
 	mockExecutor := new(MockCommandExecutor)
 	mockExecutor.On("IsCommandAllowed", "ls -la").Return(true)
 	mockExecutor.On("ExecuteCommand", "ls -la", mock.Anything).Return(types.CommandResult{
-		Stdout: "file1\nfile2\nfile3", 
-		WorkingDir: "/tmp", 
-		Command: "ls -la", 
-		ExitCode: 0,
+		Stdout:     "file1\nfile2\nfile3",
+		WorkingDir: "/tmp",
+		Command:    "ls -la",
+		ExitCode:   0,
 	}, nil)
 	mockExecutor.On("GetAllowedCommands").Return("ls, echo, git")
 	mockExecutor.On("GetCurrentWorkingDir").Return("/tmp")
 
-	// ツールを登録（エラーがなければ登録成功と見なす）
+	// Register the tool (consider registration successful if there is no error)
 	err := RegisterCommandExecTool(mcpServer, mockExecutor)
-	assert.NoError(t, err, "ツールの登録に失敗しました")
+	assert.NoError(t, err, "Failed to register the tool")
 }
 
 func TestCommandValidation(t *testing.T) {
-	// モックExecutorを設定
+	// Configure mock executor
 	mockExecutor := new(MockCommandExecutor)
 	mockExecutor.On("IsCommandAllowed", "ls -la").Return(true)
 	mockExecutor.On("IsCommandAllowed", "dangerous_command").Return(false)
 
-	// 検証
+	// Validation
 	assert.True(t, mockExecutor.IsCommandAllowed("ls -la"))
 	assert.False(t, mockExecutor.IsCommandAllowed("dangerous_command"))
 }

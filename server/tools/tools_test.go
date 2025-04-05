@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockCommandExecutorForToolsTest - モックCommandExecutor
+// MockCommandExecutorForToolsTest - Mock CommandExecutor
 type MockCommandExecutorForToolsTest struct {
 	mock.Mock
 }

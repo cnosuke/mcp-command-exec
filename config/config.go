@@ -7,7 +7,7 @@ import (
 	"github.com/jinzhu/configor"
 )
 
-// デフォルトの許可コマンドリスト
+// Default allowed command list
 var defaultAllowedCommands = []string{
 	"git",
 	"ls",
@@ -25,29 +25,25 @@ var defaultAllowedCommands = []string{
 
 // Config - Application configuration
 type Config struct {
-	Log    string `yaml:"log" env:"LOG_PATH"`
-	Debug  bool   `yaml:"debug" default:"false" env:"DEBUG"`
+	Log         string `yaml:"log" env:"LOG_PATH"`
+	Debug       bool   `yaml:"debug" default:"false" env:"DEBUG"`
 	CommandExec struct {
-		AllowedCommands []string `yaml:"allowed_commands"`
-		// 作業ディレクトリ関連設定
-		DefaultWorkingDir string   `yaml:"default_working_dir" env:"DEFAULT_WORKING_DIR"`
-		AllowedDirs       []string `yaml:"allowed_dirs"`
-		ShowWorkingDir    bool     `yaml:"show_working_dir" default:"true"`
-		// 探索パス関連設定
-		SearchPaths  []string `yaml:"search_paths"`
-		PathBehavior string   `yaml:"path_behavior" default:"prepend"`
-		// 環境変数設定
-		Environment map[string]string `yaml:"environment"`
+		AllowedCommands   []string          `yaml:"allowed_commands"`
+		DefaultWorkingDir string            `yaml:"default_working_dir" env:"DEFAULT_WORKING_DIR"`
+		AllowedDirs       []string          `yaml:"allowed_dirs"`
+		ShowWorkingDir    bool              `yaml:"show_working_dir" default:"true"`
+		SearchPaths       []string          `yaml:"search_paths"`
+		PathBehavior      string            `yaml:"path_behavior" default:"prepend"`
+		Environment       map[string]string `yaml:"environment"`
 	} `yaml:"command_exec"`
 }
 
 // LoadConfig - Load configuration file
 func LoadConfig(path string) (*Config, error) {
-	// デフォルト値を設定したConfigを作成
 	cfg := &Config{}
 	cfg.CommandExec.AllowedCommands = defaultAllowedCommands
 
-	// 設定ファイルから読み込み（存在する場合はデフォルト値を上書き）
+	// Load from configuration file (overwrites defaults if exists)
 	err := configor.New(&configor.Config{
 		Debug:      false,
 		Verbose:    false,
@@ -55,7 +51,7 @@ func LoadConfig(path string) (*Config, error) {
 		AutoReload: false,
 	}).Load(cfg, path)
 
-	// 環境変数から許可コマンドリストを上書き（環境変数が設定されている場合）
+	// Override allowed command list from environment variables (if set)
 	if envAllowedCmd := os.Getenv("ALLOWED_COMMANDS"); envAllowedCmd != "" {
 		cfg.CommandExec.AllowedCommands = strings.Split(envAllowedCmd, ",")
 	}

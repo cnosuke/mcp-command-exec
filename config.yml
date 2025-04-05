@@ -21,20 +21,20 @@ command_exec:
     - ruby
     - gem
     - bundle
-  # 作業ディレクトリ設定
+  # Working directory settings
   default_working_dir: "/Users/cnosuke/src"
   allowed_dirs:
     - "/Users/cnosuke/dev/src"
     - "/tmp"
   show_working_dir: true
-  # 探索パス設定
+  # Search path settings
   search_paths:
     - "/usr/local/bin"
     - "/usr/bin"
     - "/bin"
     - "/Users/cnosuke/.local/share/mise/shims/"
   path_behavior: "prepend" # prepend, replace, append
-  # 環境変数設定
+  # Environment variable settings
   environment:
     HOME: "/Users/cnosuke"
     GOPATH: "/Users/cnosuke/dev"

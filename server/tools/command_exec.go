@@ -31,7 +31,7 @@ type CommandExecutor interface {
 // RegisterCommandExecTool - Register the command_exec tool
 func RegisterCommandExecTool(mcpServer *server.MCPServer, executor CommandExecutor) error {
 	zap.S().Debugw("registering command_exec tool")
-	
+
 	description := fmt.Sprint(
 		"Execute a system command from a predefined allowed list.",
 		"Recommended to specify the directory to execute the command in using the `working_dir` parameter.",
@@ -84,13 +84,13 @@ func RegisterCommandExecTool(mcpServer *server.MCPServer, executor CommandExecut
 		zap.S().Debugw("executing command_exec",
 			"command", command)
 
-		// 空のコマンドをチェック
+		// Check for empty command
 		if command == "" {
 			zap.S().Warnw("empty command provided")
 			return mcp.NewToolResultError("empty command provided"), nil
 		}
 
-		// コマンドが許可リストに含まれているかチェック
+		// Check if command is in the allowed list
 		if !executor.IsCommandAllowed(command) {
 			zap.S().Warnw("command not allowed",
 				"command", command)
@@ -100,7 +100,7 @@ func RegisterCommandExecTool(mcpServer *server.MCPServer, executor CommandExecut
 		var result types.CommandResult
 		var err error
 
-		// 作業ディレクトリが指定されている場合、パラメータを使用して実行
+		// If working directory is specified, execute using the parameter
 		if workingDir != "" {
 			zap.S().Debugw("executing command in specified directory",
 				"command", command,
@@ -109,17 +109,17 @@ func RegisterCommandExecTool(mcpServer *server.MCPServer, executor CommandExecut
 
 			result, err = executor.ExecuteCommandInDir(command, workingDir, env)
 		} else {
-			// 作業ディレクトリが指定されていない場合、通常の実行を行う
+			// If working directory is not specified, execute normally
 			result, err = executor.ExecuteCommand(command, env)
 		}
 
-		// エラー処理
+		// Error handling
 		if err != nil {
 			zap.S().Errorw("failed to execute command",
 				"command", command,
 				"error", err)
 
-			// エラーがあってもレスポンスは返す
+			// Return response even if there is an error
 			jsonBytes, jsonErr := json.Marshal(result)
 			if jsonErr != nil {
 				zap.S().Errorw("failed to marshal result to JSON", "error", jsonErr)
@@ -128,7 +128,7 @@ func RegisterCommandExecTool(mcpServer *server.MCPServer, executor CommandExecut
 			return mcp.NewToolResultText(string(jsonBytes)), nil
 		}
 
-		// JSONを文字列に変換してTextContentとして返す
+		// Convert JSON to string and return as TextContent
 		jsonBytes, err := json.Marshal(result)
 		if err != nil {
 			zap.S().Errorw("failed to marshal result to JSON", "error", err)
