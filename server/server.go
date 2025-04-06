@@ -3,40 +3,40 @@ package server
 import (
 	"context"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-	"go.uber.org/zap"
-
 	"github.com/cnosuke/mcp-command-exec/config"
-	"github.com/cnosuke/mcp-command-exec/server/tools"
+	"github.com/cnosuke/mcp-command-exec/executor"
+	"github.com/cnosuke/mcp-command-exec/mcp"
 	"github.com/cockroachdb/errors"
+	mcppkg "github.com/mark3labs/mcp-go/mcp"
+	mcpserver "github.com/mark3labs/mcp-go/server"
+	"go.uber.org/zap"
 )
 
-// Run - Execute the MCP server
-func Run(cfg *config.Config, name string, version string, revision string) error {
-	zap.S().Infow("starting MCP Command Executor Server")
+// Server represents the MCP server
+type Server struct {
+	mcpServer   *mcpserver.MCPServer
+	cmdExecutor executor.CommandExecutor
+	name        string
+	version     string
+}
 
-	// Format version string with revision if available
-	versionString := version
-	if revision != "" && revision != "xxx" {
-		versionString = versionString + " (" + revision + ")"
-	}
+// NewServer creates a new server instance
+func NewServer(cfg *config.Config, name, version string) (*Server, error) {
+	zap.S().Infow("creating new MCP Command Executor Server")
 
-	// Create Command Executor server
-	zap.S().Debugw("creating Command Executor server",
-		"allowed_commands", cfg.CommandExec.AllowedCommands,
-		"search_paths", cfg.CommandExec.SearchPaths,
-		"path_behavior", cfg.CommandExec.PathBehavior)
-		
-	commandExecutorServer, err := NewCommandExecutorServer(cfg)
+	// Create command execution instance
+	zap.S().Debugw("creating command executor",
+		"allowed_commands", cfg.CommandExec.AllowedCommands)
+
+	cmdExecutor, err := executor.NewCommandExecutor(cfg)
 	if err != nil {
-		zap.S().Errorw("failed to create Command Executor server", "error", err)
-		return err
+		zap.S().Errorw("failed to create command executor", "error", err)
+		return nil, err
 	}
 
-	// Create custom hooks for error handling
-	hooks := &server.Hooks{}
-	hooks.AddOnError(func(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
+	// Create MCP server and set error handling hooks
+	hooks := &mcpserver.Hooks{}
+	hooks.AddOnError(func(ctx context.Context, id any, method mcppkg.MCPMethod, message any, err error) {
 		zap.S().Errorw("MCP error occurred",
 			"id", id,
 			"method", method,
@@ -44,33 +44,45 @@ func Run(cfg *config.Config, name string, version string, revision string) error
 		)
 	})
 
-	// Create MCP server with server name and version
 	zap.S().Debugw("creating MCP server",
 		"name", name,
-		"version", versionString,
+		"version", version,
 	)
-	mcpServer := server.NewMCPServer(
+
+	mcpServer := mcpserver.NewMCPServer(
 		name,
-		versionString,
-		server.WithHooks(hooks),
+		version,
+		mcpserver.WithHooks(hooks),
 	)
 
-	// Register all tools
+	// Create server instance
+	s := &Server{
+		mcpServer:   mcpServer,
+		cmdExecutor: cmdExecutor,
+		name:        name,
+		version:     version,
+	}
+
+	return s, nil
+}
+
+// Start starts the server
+func (s *Server) Start() error {
+	// Register tools
 	zap.S().Debugw("registering tools")
-	if err := tools.RegisterAllTools(mcpServer, commandExecutorServer); err != nil {
+	if err := mcp.RegisterAllTools(s.mcpServer, s.cmdExecutor); err != nil {
 		zap.S().Errorw("failed to register tools", "error", err)
-		return err
+		return errors.Wrap(err, "failed to register tools")
 	}
 
-	// Start the server with stdio transport
+	// Start the MCP server using standard input/output
 	zap.S().Infow("starting MCP server")
-	err = server.ServeStdio(mcpServer)
+	err := mcpserver.ServeStdio(s.mcpServer)
 	if err != nil {
-		zap.S().Errorw("failed to start server", "error", err)
-		return errors.Wrap(err, "failed to start server")
+		zap.S().Errorw("server error", "error", err)
+		return errors.Wrap(err, "server error")
 	}
 
-	// ServeStdio will block until the server is terminated
 	zap.S().Infow("server shutting down")
 	return nil
 }

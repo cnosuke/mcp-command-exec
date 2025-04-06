@@ -12,15 +12,14 @@ var defaultAllowedCommands = []string{
 	"git",
 	"ls",
 	"mkdir",
-	"cd",
-	"go",
 	"make",
 	"cat",
 	"find",
 	"grep",
-	"pwd",
 	"mv",
 	"cp",
+	"cd",
+	"pwd",
 }
 
 // Config - Application configuration
